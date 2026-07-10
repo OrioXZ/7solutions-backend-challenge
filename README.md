@@ -8,7 +8,7 @@ Initial Go HTTP server setup with a health-check endpoint.
 
 ## Requirements
 
-- Go 1.24+
+- Go 1.23+
 
 ## Run Locally
 
