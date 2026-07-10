@@ -65,19 +65,29 @@ func TestRunUserCountLoggerLogsCountError(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&output, nil))
 	called := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 
-	go RunUserCountLogger(ctx, logger, userCounterStub{
-		count: func(context.Context) (int64, error) {
-			called <- struct{}{}
-			return 0, errors.New("database unavailable")
-		},
-	}, 5*time.Millisecond)
+	go func() {
+		RunUserCountLogger(ctx, logger, userCounterStub{
+			count: func(context.Context) (int64, error) {
+				called <- struct{}{}
+				return 0, errors.New("database unavailable")
+			},
+		}, 5*time.Millisecond)
+		close(done)
+	}()
 
 	select {
 	case <-called:
 		cancel()
 	case <-time.After(time.Second):
 		t.Fatal("counter was not called")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop after cancellation")
 	}
 
 	var entry map[string]any
