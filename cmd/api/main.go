@@ -22,6 +22,12 @@ func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	tokenIssuer, err := security.NewJWTIssuer(cfg.JWTSecret, 24*time.Hour)
+	if err != nil {
+		logger.Error("JWT configuration invalid", "error", err)
+		os.Exit(1)
+	}
+
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	mongoDB, err := database.ConnectMongo(startupCtx, cfg.MongoURI, cfg.MongoDatabase)
 	if err != nil {
@@ -41,7 +47,7 @@ func main() {
 	logger.Info("MongoDB connected", "database", cfg.MongoDatabase)
 
 	passwordHasher := security.NewBcryptPasswordHasher()
-	authService := service.NewAuthService(userRepository, passwordHasher)
+	authService := service.NewAuthService(userRepository, passwordHasher, tokenIssuer)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
