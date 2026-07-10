@@ -108,6 +108,66 @@
               }
             }
           ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set(\"token\", body.data.access_token);",
+                  "}",
+                  "",
+                  "pm.test(\"Response contains an HS256-shaped bearer token\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.token_type).to.eql(\"Bearer\");",
+                  "    pm.expect(body.data.access_token.split(\".\")).to.have.lengthOf(3);",
+                  "    pm.expect(body.data.expires_at).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
