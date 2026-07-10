@@ -14,6 +14,8 @@ import (
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/database"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/httpapi"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/repository"
+	"github.com/OrioXZ/7solutions-backend-challenge/internal/security"
+	"github.com/OrioXZ/7solutions-backend-challenge/internal/service"
 )
 
 func main() {
@@ -38,9 +40,12 @@ func main() {
 	startupCancel()
 	logger.Info("MongoDB connected", "database", cfg.MongoDatabase)
 
+	passwordHasher := security.NewBcryptPasswordHasher()
+	authService := service.NewAuthService(userRepository, passwordHasher)
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpapi.NewRouter(mongoDB),
+		Handler:           httpapi.NewRouter(mongoDB, authService),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
