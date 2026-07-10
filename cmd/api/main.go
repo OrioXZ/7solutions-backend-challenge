@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/OrioXZ/7solutions-backend-challenge/internal/background"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/config"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/database"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/httpapi"
@@ -55,9 +56,19 @@ func main() {
 	authService := service.NewAuthService(userRepository, passwordHasher, tokenIssuer)
 	userService := service.NewUserService(userRepository, passwordHasher)
 
+	signalCtx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	go background.RunUserCountLogger(signalCtx, logger, userRepository, 10*time.Second)
+
+	router := httpapi.NewRouter(mongoDB, authService, userService, tokenValidator)
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpapi.NewRouter(mongoDB, authService, userService, tokenValidator),
+		Handler:           httpapi.LoggingMiddleware(logger)(router),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -67,13 +78,6 @@ func main() {
 		serverErr <- server.ListenAndServe()
 	}()
 
-	signalCtx, stop := signal.NotifyContext(
-		context.Background(),
-		os.Interrupt,
-		syscall.SIGTERM,
-	)
-	defer stop()
-
 	select {
 	case <-signalCtx.Done():
 		logger.Info("shutdown signal received")
@@ -82,6 +86,7 @@ func main() {
 			logger.Error("HTTP server failed", "error", err)
 		}
 	}
+	stop()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
