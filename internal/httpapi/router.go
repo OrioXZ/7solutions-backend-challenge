@@ -1,24 +1,47 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
-type healthResponse struct {
-	Status string `json:"status"`
+type HealthChecker interface {
+	Ping(ctx context.Context) error
 }
 
-func NewRouter() http.Handler {
+type healthResponse struct {
+	Status   string `json:"status"`
+	Database string `json:"database"`
+}
+
+func NewRouter(healthChecker HealthChecker) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handleHealth)
+	mux.HandleFunc("GET /health", handleHealth(healthChecker))
 
 	return mux
 }
 
-func handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+func handleHealth(healthChecker HealthChecker) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
 
-	_ = json.NewEncoder(w).Encode(healthResponse{Status: "ok"})
+		response := healthResponse{
+			Status:   "ok",
+			Database: "connected",
+		}
+		statusCode := http.StatusOK
+
+		if err := healthChecker.Ping(ctx); err != nil {
+			response.Status = "unavailable"
+			response.Database = "disconnected"
+			statusCode = http.StatusServiceUnavailable
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(response)
+	}
 }
