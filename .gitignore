@@ -1,0 +1,19 @@
+# Environment
+.env
+
+# Build output
+bin/
+build/
+dist/
+*.exe
+*.test
+*.out
+
+# Coverage
+coverage.out
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
