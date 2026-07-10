@@ -13,6 +13,7 @@ import (
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/config"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/database"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/httpapi"
+	"github.com/OrioXZ/7solutions-backend-challenge/internal/repository"
 )
 
 func main() {
@@ -21,11 +22,20 @@ func main() {
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	mongoDB, err := database.ConnectMongo(startupCtx, cfg.MongoURI, cfg.MongoDatabase)
-	startupCancel()
 	if err != nil {
+		startupCancel()
 		logger.Error("MongoDB connection failed", "error", err)
 		os.Exit(1)
 	}
+
+	userRepository := repository.NewMongoUserRepository(mongoDB.Database())
+	if err := userRepository.EnsureIndexes(startupCtx); err != nil {
+		_ = mongoDB.Close(startupCtx)
+		startupCancel()
+		logger.Error("MongoDB index initialization failed", "error", err)
+		os.Exit(1)
+	}
+	startupCancel()
 	logger.Info("MongoDB connected", "database", cfg.MongoDatabase)
 
 	server := &http.Server{
