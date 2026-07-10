@@ -27,6 +27,11 @@ func main() {
 		logger.Error("JWT configuration invalid", "error", err)
 		os.Exit(1)
 	}
+	tokenValidator, err := security.NewJWTValidator(cfg.JWTSecret)
+	if err != nil {
+		logger.Error("JWT validation configuration invalid", "error", err)
+		os.Exit(1)
+	}
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	mongoDB, err := database.ConnectMongo(startupCtx, cfg.MongoURI, cfg.MongoDatabase)
@@ -48,10 +53,11 @@ func main() {
 
 	passwordHasher := security.NewBcryptPasswordHasher()
 	authService := service.NewAuthService(userRepository, passwordHasher, tokenIssuer)
+	userService := service.NewUserService(userRepository, passwordHasher)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpapi.NewRouter(mongoDB, authService),
+		Handler:           httpapi.NewRouter(mongoDB, authService, userService, tokenValidator),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
