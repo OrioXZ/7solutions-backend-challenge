@@ -16,9 +16,12 @@ type healthResponse struct {
 	Database string `json:"database"`
 }
 
-func NewRouter(healthChecker HealthChecker) http.Handler {
+func NewRouter(healthChecker HealthChecker, registrationService RegistrationService) http.Handler {
 	mux := http.NewServeMux()
+	authHandler := NewAuthHandler(registrationService)
+
 	mux.HandleFunc("GET /health", handleHealth(healthChecker))
+	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
 
 	return mux
 }
