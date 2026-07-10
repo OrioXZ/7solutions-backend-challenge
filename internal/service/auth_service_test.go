@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/domain"
 	"github.com/OrioXZ/7solutions-backend-challenge/internal/repository"
@@ -13,21 +14,41 @@ import (
 type stubPasswordHasher struct {
 	hashResult string
 	hashErr    error
+	verifyErr  error
+	verifyFn   func(hash, password string) error
 }
 
 func (s stubPasswordHasher) Hash(string) (string, error) {
 	return s.hashResult, s.hashErr
 }
 
-func (s stubPasswordHasher) Verify(string, string) error {
-	return nil
+func (s stubPasswordHasher) Verify(hash, password string) error {
+	if s.verifyFn != nil {
+		return s.verifyFn(hash, password)
+	}
+	return s.verifyErr
+}
+
+type stubTokenIssuer struct {
+	issueFn func(subject string) (string, time.Time, error)
+}
+
+func (s stubTokenIssuer) Issue(subject string) (string, time.Time, error) {
+	if s.issueFn == nil {
+		return "", time.Time{}, errors.New("unexpected token issue")
+	}
+	return s.issueFn(subject)
 }
 
 type mockUserRepository struct {
-	createFn func(context.Context, *domain.User) error
+	createFn      func(context.Context, *domain.User) error
+	findByEmailFn func(context.Context, string) (*domain.User, error)
 }
 
 func (m *mockUserRepository) Create(ctx context.Context, user *domain.User) error {
+	if m.createFn == nil {
+		return nil
+	}
 	return m.createFn(ctx, user)
 }
 
@@ -35,8 +56,11 @@ func (m *mockUserRepository) FindByID(context.Context, bson.ObjectID) (*domain.U
 	return nil, repository.ErrUserNotFound
 }
 
-func (m *mockUserRepository) FindByEmail(context.Context, string) (*domain.User, error) {
-	return nil, repository.ErrUserNotFound
+func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
+	if m.findByEmailFn == nil {
+		return nil, repository.ErrUserNotFound
+	}
+	return m.findByEmailFn(ctx, email)
 }
 
 func (m *mockUserRepository) List(context.Context) ([]domain.User, error) {
@@ -64,9 +88,13 @@ func TestAuthServiceRegister(t *testing.T) {
 		},
 	}
 
-	service := NewAuthService(repo, stubPasswordHasher{hashResult: "hashed-password"})
+	authService := NewAuthService(
+		repo,
+		stubPasswordHasher{hashResult: "hashed-password"},
+		stubTokenIssuer{},
+	)
 
-	user, err := service.Register(context.Background(), RegisterInput{
+	user, err := authService.Register(context.Background(), RegisterInput{
 		Name:     "  Alice  ",
 		Email:    "  ALICE@example.com  ",
 		Password: "password123",
@@ -120,9 +148,13 @@ func TestAuthServiceRegisterValidation(t *testing.T) {
 					return nil
 				},
 			}
-			service := NewAuthService(repo, stubPasswordHasher{hashResult: "hashed-password"})
+			authService := NewAuthService(
+				repo,
+				stubPasswordHasher{hashResult: "hashed-password"},
+				stubTokenIssuer{},
+			)
 
-			_, err := service.Register(context.Background(), tt.input)
+			_, err := authService.Register(context.Background(), tt.input)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Register() error = %v, want %v", err, tt.wantErr)
 			}
@@ -136,14 +168,165 @@ func TestAuthServiceRegisterRepositoryError(t *testing.T) {
 			return repository.ErrEmailAlreadyExists
 		},
 	}
-	service := NewAuthService(repo, stubPasswordHasher{hashResult: "hashed-password"})
+	authService := NewAuthService(
+		repo,
+		stubPasswordHasher{hashResult: "hashed-password"},
+		stubTokenIssuer{},
+	)
 
-	_, err := service.Register(context.Background(), RegisterInput{
+	_, err := authService.Register(context.Background(), RegisterInput{
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
 	if !errors.Is(err, repository.ErrEmailAlreadyExists) {
 		t.Fatalf("Register() error = %v, want %v", err, repository.ErrEmailAlreadyExists)
+	}
+}
+
+func TestAuthServiceLogin(t *testing.T) {
+	userID := bson.NewObjectID()
+	expiresAt := time.Date(2026, time.July, 11, 13, 0, 0, 0, time.UTC)
+
+	repo := &mockUserRepository{
+		findByEmailFn: func(_ context.Context, email string) (*domain.User, error) {
+			if email != "alice@example.com" {
+				t.Fatalf("FindByEmail() email = %q, want alice@example.com", email)
+			}
+			return &domain.User{
+				ID:           userID,
+				Email:        email,
+				PasswordHash: "stored-hash",
+			}, nil
+		},
+	}
+
+	hasher := stubPasswordHasher{
+		verifyFn: func(hash, password string) error {
+			if hash != "stored-hash" || password != "password123" {
+				t.Fatalf("Verify() got hash=%q password=%q", hash, password)
+			}
+			return nil
+		},
+	}
+
+	issuer := stubTokenIssuer{
+		issueFn: func(subject string) (string, time.Time, error) {
+			if subject != userID.Hex() {
+				t.Fatalf("Issue() subject = %q, want %q", subject, userID.Hex())
+			}
+			return "signed.jwt.token", expiresAt, nil
+		},
+	}
+
+	authService := NewAuthService(repo, hasher, issuer)
+	result, err := authService.Login(context.Background(), LoginInput{
+		Email:    "  ALICE@example.com  ",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if result.AccessToken != "signed.jwt.token" {
+		t.Fatalf("AccessToken = %q, want signed.jwt.token", result.AccessToken)
+	}
+	if result.TokenType != "Bearer" {
+		t.Fatalf("TokenType = %q, want Bearer", result.TokenType)
+	}
+	if !result.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("ExpiresAt = %v, want %v", result.ExpiresAt, expiresAt)
+	}
+}
+
+func TestAuthServiceLoginInvalidCredentials(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  LoginInput
+		repo   *mockUserRepository
+		hasher stubPasswordHasher
+	}{
+		{
+			name:  "invalid email",
+			input: LoginInput{Email: "invalid", Password: "password123"},
+			repo: &mockUserRepository{
+				findByEmailFn: func(context.Context, string) (*domain.User, error) {
+					t.Fatal("repository must not be called for invalid email")
+					return nil, nil
+				},
+			},
+		},
+		{
+			name:  "user not found",
+			input: LoginInput{Email: "alice@example.com", Password: "password123"},
+			repo: &mockUserRepository{
+				findByEmailFn: func(context.Context, string) (*domain.User, error) {
+					return nil, repository.ErrUserNotFound
+				},
+			},
+		},
+		{
+			name:  "wrong password",
+			input: LoginInput{Email: "alice@example.com", Password: "wrong-password"},
+			repo: &mockUserRepository{
+				findByEmailFn: func(context.Context, string) (*domain.User, error) {
+					return &domain.User{PasswordHash: "stored-hash"}, nil
+				},
+			},
+			hasher: stubPasswordHasher{verifyErr: errors.New("password mismatch")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authService := NewAuthService(tt.repo, tt.hasher, stubTokenIssuer{})
+			_, err := authService.Login(context.Background(), tt.input)
+			if !errors.Is(err, ErrInvalidCredentials) {
+				t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+			}
+		})
+	}
+}
+
+func TestAuthServiceLoginRepositoryError(t *testing.T) {
+	wantErr := errors.New("database unavailable")
+	repo := &mockUserRepository{
+		findByEmailFn: func(context.Context, string) (*domain.User, error) {
+			return nil, wantErr
+		},
+	}
+
+	authService := NewAuthService(repo, stubPasswordHasher{}, stubTokenIssuer{})
+	_, err := authService.Login(context.Background(), LoginInput{
+		Email:    "alice@example.com",
+		Password: "password123",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Login() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestAuthServiceLoginTokenError(t *testing.T) {
+	wantErr := errors.New("token signing failed")
+	repo := &mockUserRepository{
+		findByEmailFn: func(context.Context, string) (*domain.User, error) {
+			return &domain.User{
+				ID:           bson.NewObjectID(),
+				PasswordHash: "stored-hash",
+			}, nil
+		},
+	}
+	issuer := stubTokenIssuer{
+		issueFn: func(string) (string, time.Time, error) {
+			return "", time.Time{}, wantErr
+		},
+	}
+
+	authService := NewAuthService(repo, stubPasswordHasher{}, issuer)
+	_, err := authService.Login(context.Background(), LoginInput{
+		Email:    "alice@example.com",
+		Password: "password123",
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Login() error = %v, want %v", err, wantErr)
 	}
 }
