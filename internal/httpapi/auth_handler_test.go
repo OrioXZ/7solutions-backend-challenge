@@ -15,23 +15,31 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-type registrationServiceStub struct {
-	register func(ctx context.Context, input service.RegisterInput) (*domain.User, error)
+type authenticationServiceStub struct {
+	registerFn func(ctx context.Context, input service.RegisterInput) (*domain.User, error)
+	loginFn    func(ctx context.Context, input service.LoginInput) (*service.LoginResult, error)
 }
 
-func (s registrationServiceStub) Register(
+func (s authenticationServiceStub) Register(
 	ctx context.Context,
 	input service.RegisterInput,
 ) (*domain.User, error) {
-	return s.register(ctx, input)
+	return s.registerFn(ctx, input)
+}
+
+func (s authenticationServiceStub) Login(
+	ctx context.Context,
+	input service.LoginInput,
+) (*service.LoginResult, error) {
+	return s.loginFn(ctx, input)
 }
 
 func TestAuthHandlerRegisterSuccess(t *testing.T) {
 	createdAt := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
 	userID := bson.NewObjectID()
 
-	stub := registrationServiceStub{
-		register: func(_ context.Context, input service.RegisterInput) (*domain.User, error) {
+	stub := authenticationServiceStub{
+		registerFn: func(_ context.Context, input service.RegisterInput) (*domain.User, error) {
 			if input.Name != "Alice" || input.Email != "alice@example.com" || input.Password != "password123" {
 				t.Fatalf("unexpected register input: %+v", input)
 			}
@@ -80,8 +88,8 @@ func TestAuthHandlerRegisterSuccess(t *testing.T) {
 }
 
 func TestAuthHandlerRegisterDuplicateEmail(t *testing.T) {
-	stub := registrationServiceStub{
-		register: func(_ context.Context, _ service.RegisterInput) (*domain.User, error) {
+	stub := authenticationServiceStub{
+		registerFn: func(_ context.Context, _ service.RegisterInput) (*domain.User, error) {
 			return nil, repository.ErrEmailAlreadyExists
 		},
 	}
@@ -105,8 +113,8 @@ func TestAuthHandlerRegisterDuplicateEmail(t *testing.T) {
 
 func TestAuthHandlerRegisterRejectsInvalidJSON(t *testing.T) {
 	called := false
-	stub := registrationServiceStub{
-		register: func(_ context.Context, _ service.RegisterInput) (*domain.User, error) {
+	stub := authenticationServiceStub{
+		registerFn: func(_ context.Context, _ service.RegisterInput) (*domain.User, error) {
 			called = true
 			return nil, nil
 		},
@@ -126,5 +134,100 @@ func TestAuthHandlerRegisterRejectsInvalidJSON(t *testing.T) {
 	}
 	if called {
 		t.Fatal("registration service must not be called for invalid JSON")
+	}
+}
+
+func TestAuthHandlerLoginSuccess(t *testing.T) {
+	expiresAt := time.Date(2026, time.July, 11, 13, 0, 0, 0, time.UTC)
+	stub := authenticationServiceStub{
+		loginFn: func(_ context.Context, input service.LoginInput) (*service.LoginResult, error) {
+			if input.Email != "alice@example.com" || input.Password != "password123" {
+				t.Fatalf("unexpected login input: %+v", input)
+			}
+			return &service.LoginResult{
+				AccessToken: "signed.jwt.token",
+				TokenType:   "Bearer",
+				ExpiresAt:   expiresAt,
+			}, nil
+		},
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"email":"alice@example.com","password":"password123"}`),
+	)
+	response := httptest.NewRecorder()
+
+	NewAuthHandler(stub).Login(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var body struct {
+		Data loginResponse `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Data.AccessToken != "signed.jwt.token" {
+		t.Fatalf("access token = %q, want signed.jwt.token", body.Data.AccessToken)
+	}
+	if body.Data.TokenType != "Bearer" {
+		t.Fatalf("token type = %q, want Bearer", body.Data.TokenType)
+	}
+	if !body.Data.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("expires at = %v, want %v", body.Data.ExpiresAt, expiresAt)
+	}
+}
+
+func TestAuthHandlerLoginInvalidCredentials(t *testing.T) {
+	stub := authenticationServiceStub{
+		loginFn: func(_ context.Context, _ service.LoginInput) (*service.LoginResult, error) {
+			return nil, service.ErrInvalidCredentials
+		},
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"email":"alice@example.com","password":"wrong-password"}`),
+	)
+	response := httptest.NewRecorder()
+
+	NewAuthHandler(stub).Login(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+	if !strings.Contains(response.Body.String(), `"code":"INVALID_CREDENTIALS"`) {
+		t.Fatalf("unexpected response body: %s", response.Body.String())
+	}
+}
+
+func TestAuthHandlerLoginRejectsInvalidJSON(t *testing.T) {
+	called := false
+	stub := authenticationServiceStub{
+		loginFn: func(_ context.Context, _ service.LoginInput) (*service.LoginResult, error) {
+			called = true
+			return nil, nil
+		},
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"email":`),
+	)
+	response := httptest.NewRecorder()
+
+	NewAuthHandler(stub).Login(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	if called {
+		t.Fatal("login service must not be called for invalid JSON")
 	}
 }
