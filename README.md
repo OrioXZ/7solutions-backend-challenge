@@ -16,6 +16,13 @@ Backend assignment implementation for the 7Solutions Full-Stack Developer positi
 - Unit and integration tests using Go's standard `testing` package
 - Docker and Docker Compose support for the API and MongoDB
 
+## Lottery Search System
+
+The design-only Lottery Search System proposal is available here:
+
+- [Lottery Search System Design Proposal](./LOTTERY_DESIGN.md)
+- [Interactive Design Tour](./docs/lottery-design-tour.html)
+
 ## Requirements
 
 Choose one of the following setups:
@@ -202,7 +209,7 @@ Tokens expire after 24 hours.
 
 ```bash
 curl http://localhost:8080/api/v1/users \
-  -H "Authorization: Bearer <jwt-token>"
+  -H "Authorization: Bearer <token>"
 ```
 
 A missing, malformed, invalid, or expired token returns `401 Unauthorized`.
