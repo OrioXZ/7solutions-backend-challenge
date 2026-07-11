@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lottery Search System — Design Proposal Tour</title>
+  <style>
+    :root {
+      --bg:#0b1020; --panel:#121a2f; --panel2:#17223c; --text:#edf2ff;
+      --muted:#a7b1ca; --line:#2a385d; --accent:#6ea8fe; --accent2:#8cc8ff;
+      --good:#71d5a5; --warn:#f0c674; --max:1180px; --radius:18px;
+      --shadow:0 20px 60px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:radial-gradient(circle at 15% 0%,rgba(110,168,254,.16),transparent 32%),
+      radial-gradient(circle at 90% 10%,rgba(113,213,165,.08),transparent 28%),var(--bg);
+      color:var(--text);line-height:1.65}
+    a{color:inherit} button{font:inherit}
+    .progress{position:fixed;inset:0 0 auto 0;height:4px;background:rgba(255,255,255,.07);z-index:100}
+    .progress span{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--accent),var(--good));transition:width .18s}
+    .layout{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:100vh}
+    .sidebar{position:sticky;top:0;height:100vh;padding:34px 24px 28px;border-right:1px solid var(--line);
+      background:rgba(8,13,27,.82);backdrop-filter:blur(18px);overflow-y:auto}
+    .eyebrow{color:var(--accent2);text-transform:uppercase;letter-spacing:.14em;font-size:.76rem;font-weight:800}
+    .brand h1{margin:8px 0;font-size:1.35rem;line-height:1.25}.brand p{margin:0 0 24px;color:var(--muted);font-size:.92rem}
+    .tour-nav{display:grid;gap:7px;margin-top:20px}
+    .tour-nav a{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;padding:10px 11px;border-radius:12px;
+      color:var(--muted);text-decoration:none;border:1px solid transparent;transition:.18s}
+    .tour-nav a:hover,.tour-nav a.active{color:var(--text);background:rgba(110,168,254,.10);border-color:rgba(110,168,254,.28)}
+    .nav-no{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:var(--panel2);
+      color:var(--accent2);font-size:.78rem;font-weight:800}
+    .sidebar-actions{display:grid;gap:10px;margin-top:26px}
+    .btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:11px 14px;border-radius:12px;
+      cursor:pointer;text-decoration:none;text-align:center;font-weight:750;transition:.15s}
+    .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+    .btn.primary{color:#07101e;border:0;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+    main{min-width:0;padding:0 32px 90px}.hero,.tour-step{width:min(var(--max),100%);margin-inline:auto}
+    .hero{min-height:88vh;display:grid;align-content:center;padding:80px 0 52px}
+    .hero h2{margin:12px 0 18px;max-width:900px;font-size:clamp(2.5rem,7vw,5.5rem);line-height:.97;letter-spacing:-.055em}
+    .hero .lead{max-width:760px;margin:0;color:var(--muted);font-size:clamp(1.05rem,2.1vw,1.35rem)}
+    .hero-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:36px}
+    .metric{padding:18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015))}
+    .metric strong{display:block;font-size:1.5rem;color:var(--accent2)}.metric span{color:var(--muted);font-size:.88rem}
+    .tour-step{scroll-margin-top:28px;min-height:88vh;padding:58px 0 20px;display:grid;align-content:center}
+    .step-kicker{color:var(--good);font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:.8rem}
+    .tour-step h3{margin:9px 0 10px;font-size:clamp(2rem,4vw,3.3rem);line-height:1.08;letter-spacing:-.035em}
+    .step-intro{color:var(--muted);max-width:820px;margin:0 0 26px;font-size:1.08rem}
+    .grid-2,.grid-3{display:grid;gap:16px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .card{padding:22px;border:1px solid var(--line);border-radius:var(--radius);
+      background:linear-gradient(180deg,rgba(23,34,60,.92),rgba(18,26,47,.92));box-shadow:var(--shadow)}
+    .card h4{margin:0 0 8px;font-size:1.05rem}.card p{margin:0;color:var(--muted)}
+    .tag{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:.78rem;font-weight:800;
+      border:1px solid var(--line);color:var(--accent2);background:rgba(110,168,254,.08);margin-bottom:12px}
+    .tag.good{color:var(--good);background:rgba(113,213,165,.08)}.tag.warn{color:var(--warn);background:rgba(240,198,116,.08)}
+    .diagram{display:grid;gap:12px;margin-top:18px}.node{position:relative;padding:18px 20px;border-radius:15px;background:var(--panel2);
+      border:1px solid var(--line);text-align:center;font-weight:800}
+    .node+.node:before{content:"↓";position:absolute;top:-26px;left:50%;transform:translateX(-50%);color:var(--accent);font-size:1.25rem}
+    .state-flow{display:grid;grid-template-columns:1fr 120px 1fr auto 1fr;grid-template-rows:auto auto;gap:12px;align-items:center;margin-top:24px}
+    .state{padding:22px 16px;border-radius:16px;border:1px solid var(--line);background:var(--panel2);text-align:center;font-weight:850}
+    .bi-arrow{display:grid;gap:8px;justify-items:center;align-items:center}
+    .bi-arrow .top,.bi-arrow .bottom{display:inline-block;color:var(--accent);font-size:2rem;font-weight:900;line-height:1}
+    .bi-arrow .bottom{transform:scaleY(-1)}
+    .arrow{color:var(--accent);font-size:1.7rem;font-weight:900;text-align:center}
+    .release-note{grid-column:1 / span 3;justify-self:center;padding:12px 18px;border-radius:14px;border:1px dashed rgba(110,168,254,.35);background:rgba(110,168,254,.06);color:var(--muted);min-width:min(100%,320px);text-align:center}
+    .release-note strong{color:var(--text)}
+    .callout{margin-top:18px;padding:18px 20px;border-radius:15px;border-left:4px solid var(--accent);
+      background:rgba(110,168,254,.08);color:var(--muted)}.callout strong{color:var(--text)}
+    pre{margin:18px 0 0;padding:18px;border-radius:15px;background:#080d18;border:1px solid var(--line);
+      overflow:auto;color:#dbe7ff;font-size:.91rem;line-height:1.55}
+    code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+    .timeline{display:grid;gap:12px;counter-reset:flow}.timeline-item{counter-increment:flow;display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start}
+    .timeline-item:before{content:counter(flow);width:38px;height:38px;display:grid;place-items:center;border-radius:12px;
+      background:rgba(110,168,254,.14);color:var(--accent2);border:1px solid rgba(110,168,254,.3);font-weight:900}
+    .timeline-item h4{margin:2px 0 3px}.timeline-item p{margin:0;color:var(--muted)}
+    .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+    table{width:100%;border-collapse:collapse;min-width:680px}th,td{padding:14px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{color:var(--accent2);background:rgba(110,168,254,.06);font-size:.86rem;text-transform:uppercase;letter-spacing:.04em}
+    td{color:var(--muted)}tr:last-child td{border-bottom:0}
+    .step-actions{display:flex;justify-content:space-between;gap:12px;margin-top:26px}.mobile-bar{display:none}
+    footer{width:min(var(--max),100%);margin:60px auto 0;padding:30px 0 10px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+    @media(max-width:960px){.layout{grid-template-columns:1fr}.sidebar{display:none}.mobile-bar{display:flex;position:sticky;top:0;z-index:90;
+      justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);background:rgba(8,13,27,.9);backdrop-filter:blur(16px)}
+      main{padding:0 20px 70px}.hero-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-2,.grid-3{grid-template-columns:1fr}
+      .state-flow{grid-template-columns:1fr;grid-template-rows:auto}.bi-arrow{grid-auto-flow:column;justify-content:center}.bi-arrow .top,.bi-arrow .bottom{font-size:1.5rem}.arrow{transform:rotate(90deg)}.release-note{grid-column:auto;min-width:0}}
+    @media(max-width:560px){.hero{min-height:auto;padding-top:70px}.tour-step{min-height:auto;padding-top:70px}.hero-grid{grid-template-columns:1fr}.step-actions{flex-direction:column}}
+    @media print{body{background:white;color:#111}.sidebar,.mobile-bar,.progress,.step-actions{display:none!important}.layout{display:block}main{padding:0}
+      .hero,.tour-step{min-height:auto;page-break-inside:avoid;padding:18px 0}.card,.table-wrap,pre,.node,.state{box-shadow:none;background:white;border-color:#bbb;color:#111}
+      .card p,.step-intro,td,footer{color:#333}pre{white-space:pre-wrap}}
+  </style>
+</head>
+<body>
+  <div class="progress"><span id="progressBar"></span></div>
+  <div class="mobile-bar"><strong>Lottery Design Tour</strong><button class="btn" onclick="window.print()">Print</button></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">Design Proposal</div>
+        <h1>Lottery Search System</h1>
+        <p>A guided walkthrough of the architecture, algorithm, concurrency strategy, and trade-offs.</p>
+      </div>
+      <nav class="tour-nav">
+        <a href="#overview"><span class="nav-no">01</span><span>Overview</span></a>
+        <a href="#assumptions"><span class="nav-no">02</span><span>Assumptions</span></a>
+        <a href="#architecture"><span class="nav-no">03</span><span>Architecture</span></a>
+        <a href="#data-model"><span class="nav-no">04</span><span>Data model</span></a>
+        <a href="#search"><span class="nav-no">05</span><span>Search algorithm</span></a>
+        <a href="#allocation"><span class="nav-no">06</span><span>Atomic allocation</span></a>
+        <a href="#lifecycle"><span class="nav-no">07</span><span>Ticket lifecycle</span></a>
+        <a href="#performance"><span class="nav-no">08</span><span>Performance</span></a>
+        <a href="#tradeoffs"><span class="nav-no">09</span><span>Trade-offs</span></a>
+        <a href="#conclusion"><span class="nav-no">10</span><span>Conclusion</span></a>
+      </nav>
+      <div class="sidebar-actions">
+        <a class="btn primary" href="#overview">Start the tour</a>
+        <button class="btn" onclick="window.print()">Print / Save PDF</button>
+      </div>
+    </aside>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow">7Solutions Backend Challenge</div>
+        <h2>Fast search.<br>Safe allocation.<br>One source of truth.</h2>
+        <p class="lead">A production-oriented design for searching one million six-digit lottery tickets with wildcard patterns, while preventing duplicate concurrent reservations.</p>
+        <div class="hero-grid">
+          <div class="metric"><strong>1,000,000</strong><span>six-digit tickets</span></div>
+          <div class="metric"><strong>6</strong><span>pattern positions</span></div>
+          <div class="metric"><strong>10</strong><span>results per request</span></div>
+          <div class="metric"><strong>1 DB</strong><span>transactional source of truth</span></div>
+        </div>
+      </section>
+
+      <section class="tour-step" id="overview">
+        <div class="step-kicker">Step 01</div><h3>What problem are we solving?</h3>
+        <p class="step-intro">The system must search one million tickets using six-character patterns containing digits and <code>*</code> wildcards. The difficult part is not only finding matches; it is allocating them safely under concurrency.</p>
+        <div class="grid-3">
+          <article class="card"><span class="tag">Search</span><h4>Pattern matching</h4><p><code>****23</code>, <code>1****5</code>, <code>123***</code>, and <code>******</code> must all be supported.</p></article>
+          <article class="card"><span class="tag good">Distribution</span><h4>No duplicate allocation</h4><p>The same ticket must not be reserved by multiple users at the same time, even when different patterns overlap.</p></article>
+          <article class="card"><span class="tag warn">Scale</span><h4>Predictable performance</h4><p>The search must avoid returning or randomly sorting the full one-million-row dataset.</p></article>
+        </div>
+        <div class="callout"><strong>Core design goal:</strong> search and reserve must behave as one atomic business operation.</div>
+        <div class="step-actions"><span></span><a class="btn primary" href="#assumptions">Next: Assumptions</a></div>
+      </section>
+
+      <section class="tour-step" id="assumptions">
+        <div class="step-kicker">Step 02</div><h3>Assumptions and design decisions</h3>
+        <p class="step-intro">Requirements, assumptions, and implementation choices are kept separate so the proposal remains auditable.</p>
+        <div class="grid-2">
+          <article class="card"><span class="tag">Assumptions</span><h4>Dataset interpretation</h4><p>The dataset contains exactly one ticket for every number from <code>000000</code> to <code>999999</code>. Leading zeroes are significant, and every ticket number is unique.</p></article>
+          <article class="card"><span class="tag good">Design decisions</span><h4>Search behavior</h4><p>A request returns up to 10 tickets. The frontend may use <code>******</code> as the default pattern. Returned tickets are temporarily reserved.</p></article>
+          <article class="card"><span class="tag warn">Configurable</span><h4>Reservation duration</h4><p>Reservations expire after a short configurable period, such as 120 seconds. This is a product choice, not a fixed assignment requirement.</p></article>
+          <article class="card"><span class="tag">Correctness</span><h4>Sold tickets disappear</h4><p>A sold ticket never returns to future search results. Unselected or expired tickets return to the available pool.</p></article>
+        </div>
+        <div class="step-actions"><a class="btn" href="#overview">Back</a><a class="btn primary" href="#architecture">Next: Architecture</a></div>
+      </section>
+
+      <section class="tour-step" id="architecture">
+        <div class="step-kicker">Step 03</div><h3>Architecture: keep it transactional</h3>
+        <p class="step-intro">PostgreSQL is used for search, reservation, purchase, and concurrency control. One transactional system is easier to reason about than a Redis/PostgreSQL dual-write design.</p>
+        <div class="grid-2">
+          <article class="card"><h4>Request path</h4><div class="diagram"><div class="node">Client / Frontend</div><div class="node">Lottery API</div><div class="node">PostgreSQL</div></div></article>
+          <article class="card"><h4>Why PostgreSQL?</h4><div class="timeline">
+            <div class="timeline-item"><div><h4>ACID transactions</h4><p>Search, row locking, and reservation updates can commit together.</p></div></div>
+            <div class="timeline-item"><div><h4>Row-level concurrency</h4><p><code>FOR UPDATE SKIP LOCKED</code> prevents duplicate reservations without global blocking.</p></div></div>
+            <div class="timeline-item"><div><h4>Operational simplicity</h4><p>One source of truth means no distributed state synchronization.</p></div></div>
+          </div></article>
+        </div>
+        <div class="callout"><strong>Future option:</strong> add Redis only if production measurements show PostgreSQL is the bottleneck.</div>
+        <div class="step-actions"><a class="btn" href="#assumptions">Back</a><a class="btn primary" href="#data-model">Next: Data model</a></div>
+      </section>
+
+      <section class="tour-step" id="data-model">
+        <div class="step-kicker">Step 04</div><h3>Data model and indexes</h3>
+        <p class="step-intro">The ticket number is stored as text to preserve leading zeroes, plus a numeric value and generated digit columns for efficient indexed search.</p>
+        <div class="grid-2">
+          <article class="card"><h4>Ticket record</h4><pre><code>tickets
+-------
+ticket_number    CHAR(6) PRIMARY KEY
+ticket_value     INTEGER UNIQUE
+digit_1..digit_6 SMALLINT
+status           AVAILABLE | RESERVED | SOLD
+reserved_by      nullable
+reserved_until   nullable
+order_id         nullable</code></pre></article>
+          <article class="card"><h4>Purchase records</h4><pre><code>orders
+------
+id
+user_id
+created_at
+status
+
+order_items
+-----------
+order_id
+ticket_number UNIQUE</code></pre></article>
+        </div>
+        <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Index</th><th>Purpose</th></tr></thead><tbody>
+          <tr><td><code>PRIMARY KEY(ticket_number)</code></td><td>Fast exact-number lookup.</td></tr>
+          <tr><td><code>UNIQUE(ticket_value)</code></td><td>Random pivot ordering and wrap-around.</td></tr>
+          <tr><td><code>(digit_n, ticket_value) WHERE status='AVAILABLE'</code></td><td>Indexed filtering for fixed positions.</td></tr>
+          <tr><td><code>UNIQUE(order_items.ticket_number)</code></td><td>Final database-level protection against duplicate sale.</td></tr>
+        </tbody></table></div>
+        <div class="step-actions"><a class="btn" href="#architecture">Back</a><a class="btn primary" href="#search">Next: Search algorithm</a></div>
+      </section>
+
+      <section class="tour-step" id="search">
+        <div class="step-kicker">Step 05</div><h3>Translate the pattern into indexed predicates</h3>
+        <p class="step-intro">Only fixed digits become query predicates. Wildcards add no condition.</p>
+        <div class="grid-3">
+          <article class="card"><h4><code>1****5</code></h4><pre><code>status = 'AVAILABLE'
+AND digit_1 = 1
+AND digit_6 = 5</code></pre></article>
+          <article class="card"><h4><code>123***</code></h4><pre><code>status = 'AVAILABLE'
+AND digit_1 = 1
+AND digit_2 = 2
+AND digit_3 = 3</code></pre></article>
+          <article class="card"><h4><code>******</code></h4><pre><code>status = 'AVAILABLE'</code></pre></article>
+        </div>
+        <div class="timeline" style="margin-top:24px">
+          <div class="timeline-item"><div><h4>Validate</h4><p>The pattern must contain exactly six characters, each a digit or <code>*</code>.</p></div></div>
+          <div class="timeline-item"><div><h4>Choose a random pivot</h4><p>Pick a value between 0 and 999999 so allocation does not always begin with the lowest numbers.</p></div></div>
+          <div class="timeline-item"><div><h4>Search upward, then wrap</h4><p>Query from the pivot to the end. If fewer than 10 rows are found, continue from zero to the pivot.</p></div></div>
+        </div>
+        <div class="callout"><strong>Avoid:</strong> <code>ORDER BY RANDOM()</code> over one million rows, because it creates unnecessary work and prevents predictable index use.</div>
+
+        <article class="card" style="margin-top:18px">
+          <span class="tag">Complexity</span>
+          <h4>Big O at a glance</h4>
+          <p class="mini"><code>N</code> = total tickets, <code>P</code> = pattern length, <code>L</code> = returned tickets (maximum 10), and <code>C</code> = candidate index entries inspected before finding those tickets.</p>
+          <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Operation</th><th>Complexity</th><th>Reasoning</th></tr></thead><tbody>
+            <tr><td>Pattern validation</td><td><code>O(P) = O(1)</code></td><td>The pattern length is fixed at six characters.</td></tr>
+            <tr><td>Indexed candidate lookup</td><td><code>O(log N + C)</code></td><td>The B-tree locates the pivot, then scans candidate entries until enough unlocked rows are found.</td></tr>
+            <tr><td>Typical dense inventory</td><td><code>O(log N + L) ≈ O(log N)</code></td><td>When available matches are dense, <code>C</code> is close to the fixed result limit <code>L ≤ 10</code>.</td></tr>
+            <tr><td>Worst case</td><td><code>O(N)</code></td><td>Near sell-out, highly sparse matches, or many locked rows may require inspecting a large portion of the candidate range.</td></tr>
+            <tr><td>Reservation update</td><td><code>O(L) = O(1)</code></td><td>At most 10 selected rows are updated per request.</td></tr>
+            <tr><td>Storage</td><td><code>O(N)</code></td><td>The table and a constant number of indexes grow linearly with ticket count.</td></tr>
+          </tbody></table></div>
+        </article>
+
+        <div class="step-actions"><a class="btn" href="#data-model">Back</a><a class="btn primary" href="#allocation">Next: Atomic allocation</a></div>
+      </section>
+
+      <section class="tour-step" id="allocation">
+        <div class="step-kicker">Step 06</div><h3>Atomic allocation with row locks</h3>
+        <p class="step-intro">Matching and reservation happen inside one transaction. Locked rows are skipped, allowing concurrent users to receive different tickets without waiting on the same candidates.</p>
+        <pre><code>BEGIN;
+
+-- Scan 1: [random_pivot ... 999999]
+SELECT ticket_number
+FROM tickets
+WHERE status = 'AVAILABLE'
+  AND &lt;fixed-position predicates&gt;
+  AND ticket_value &gt;= :random_pivot
+ORDER BY ticket_value
+FOR UPDATE SKIP LOCKED
+LIMIT 10;
+
+-- Scan 2: [000000 ... random_pivot), only if Scan 1 found fewer than 10
+SELECT ticket_number
+FROM tickets
+WHERE status = 'AVAILABLE'
+  AND &lt;fixed-position predicates&gt;
+  AND ticket_value &lt; :random_pivot
+ORDER BY ticket_value
+FOR UPDATE SKIP LOCKED
+LIMIT :remaining_count;
+
+UPDATE tickets
+SET status = 'RESERVED',
+    reserved_by = :user_or_session,
+    reserved_until = :expires_at
+WHERE ticket_number IN (...all selected rows...);
+
+COMMIT;</code></pre>
+        <div class="callout"><strong>Bounded wrap-around:</strong> allocation performs at most two indexed scans, and both scans plus the reservation update remain inside the same transaction.</div>
+        <div class="grid-2" style="margin-top:18px">
+          <article class="card"><span class="tag good">Request A</span><h4>Locks ticket 123456</h4><p>Within its transaction, Request A selects and reserves the row.</p></article>
+          <article class="card"><span class="tag">Request B</span><h4>Skips the locked row</h4><p>Request B continues to another matching ticket instead of returning the same one.</p></article>
+        </div>
+        <div class="callout"><strong>Important:</strong> locking is ticket-level, not pattern-level. Overlapping patterns still cannot allocate the same ticket twice.</div>
+        <div class="step-actions"><a class="btn" href="#search">Back</a><a class="btn primary" href="#lifecycle">Next: Ticket lifecycle</a></div>
+      </section>
+
+      <section class="tour-step" id="lifecycle">
+        <div class="step-kicker">Step 07</div><h3>Ticket lifecycle</h3>
+        <p class="step-intro">A ticket can be available, temporarily reserved, or permanently sold.</p>
+        <div class="state-flow"><div class="state">AVAILABLE</div><div class="bi-arrow"><span class="top">↷</span><span class="bottom">↶</span></div><div class="state">RESERVED</div><div class="arrow">→</div><div class="state">SOLD</div><div class="release-note"><strong>Release / expire</strong></div></div>
+        <div class="grid-3" style="margin-top:18px">
+          <article class="card"><h4>Reserve</h4><p>The search transaction reserves up to 10 matching tickets for one user or session.</p></article>
+          <article class="card"><h4>Purchase</h4><p>Selected tickets become <code>SOLD</code> inside a PostgreSQL transaction.</p></article>
+          <article class="card"><h4>Release</h4><p>Unselected or expired tickets return from <code>RESERVED</code> to <code>AVAILABLE</code>.</p></article>
+        </div>
+        <article class="card" style="margin-top:18px">
+          <span class="tag good">State-transition safety</span>
+          <h4>Purchase and expiry cannot both win</h4>
+          <p>Both operations lock the ticket row and apply a conditional transition inside a transaction. Purchase succeeds only for the current, unexpired reservation; the expiry worker succeeds only when the same row is still <code>RESERVED</code> and already expired. Once one transaction changes the state, the other condition no longer matches.</p>
+          <pre><code>Purchase: WHERE status = 'RESERVED'
+            AND reserved_by = :owner
+            AND reserved_until &gt;= NOW()
+
+Expiry:   WHERE status = 'RESERVED'
+            AND reserved_until &lt; NOW()</code></pre>
+        </article>
+        <div class="callout"><strong>Availability is not the same as sold-out status.</strong> Zero available tickets may mean that some tickets are temporarily reserved and can return later.</div>
+        <div class="step-actions"><a class="btn" href="#allocation">Back</a><a class="btn primary" href="#performance">Next: Performance</a></div>
+      </section>
+
+      <section class="tour-step" id="performance">
+        <div class="step-kicker">Step 08</div><h3>Performance characteristics</h3>
+        <p class="step-intro">The design limits work at every stage: indexed predicates, a random pivot instead of a random sort, a result cap of 10, and non-blocking row selection.</p>
+        <div class="table-wrap"><table><thead><tr><th>Case</th><th>Expected access path</th><th>Notes</th></tr></thead><tbody>
+          <tr><td>Exact number</td><td>Primary-key lookup</td><td>Fastest case.</td></tr>
+          <tr><td>Fixed prefix/suffix</td><td>Digit-position partial index</td><td>Only matching available rows are considered.</td></tr>
+          <tr><td>Multiple fixed positions</td><td>Applicable indexed predicates</td><td>Query planner may combine useful indexes.</td></tr>
+          <tr><td><code>******</code></td><td>Available-ticket index + random pivot</td><td>No digit filter required.</td></tr>
+          <tr><td>Concurrent searches</td><td><code>SKIP LOCKED</code></td><td>Locked candidates are bypassed.</td></tr>
+        </tbody></table></div>
+        <div class="grid-2" style="margin-top:18px">
+          <article class="card"><span class="tag good">Efficient by design</span><h4>What we avoid</h4><p>Full-result retrieval, application-level mutexes, random sorting of one million rows, and cross-database reservation state.</p></article>
+          <article class="card"><span class="tag warn">Worst cases</span><h4>When search gets harder</h4><p>Sparse remaining inventory, many temporary reservations, or heavy traffic targeting the same broad pattern.</p></article>
+        </div>
+        <div class="callout"><strong>Production validation:</strong> use <code>EXPLAIN ANALYZE</code>, representative data, and concurrent load tests before final capacity decisions.</div>
+        <div class="step-actions"><a class="btn" href="#lifecycle">Back</a><a class="btn primary" href="#tradeoffs">Next: Trade-offs</a></div>
+      </section>
+
+      <section class="tour-step" id="tradeoffs">
+        <div class="step-kicker">Step 09</div><h3>Trade-offs</h3>
+        <p class="step-intro">The proposal favors correctness and operational simplicity over maximum theoretical throughput.</p>
+        <div class="grid-2">
+          <article class="card"><span class="tag good">Advantages</span><h4>Why this is practical</h4><p>One source of truth, normal database transactions, no Redis dual-write problem, arbitrary wildcard positions, auditable reservation state, and database-level duplicate-sale protection.</p></article>
+          <article class="card"><span class="tag warn">Costs</span><h4>What we pay for</h4><p>Six positional indexes add storage and write overhead. Near sell-out, searches may inspect more candidates. Frequent reservations also create write traffic.</p></article>
+        </div>
+        <article class="card" style="margin-top:18px">
+          <span class="tag">Alternative considered</span>
+          <h4>60 positional bitmaps</h4>
+          <p>A specialized in-memory design could maintain <code>6 positions × 10 digits = 60</code> bitmaps and intersect them for very fast matching. It is algorithmically attractive, but combining it with durable purchases introduces cache synchronization, recovery, and dual-write concerns. For one million records, PostgreSQL positional indexes provide the better current balance of performance, correctness, and operational simplicity.</p>
+        </article>
+        <div class="callout"><strong>Scaling path:</strong> introduce partitioning, specialized bitmap search, or Redis only after measurements justify the extra complexity.</div>
+        <div class="step-actions"><a class="btn" href="#performance">Back</a><a class="btn primary" href="#conclusion">Next: Conclusion</a></div>
+      </section>
+
+      <section class="tour-step" id="conclusion">
+        <div class="step-kicker">Step 10</div><h3>Final proposal</h3>
+        <p class="step-intro">PostgreSQL positional indexes provide efficient wildcard search, while row-level locking provides safe concurrent allocation.</p>
+        <div class="grid-3">
+          <article class="card"><h4>Feasible</h4><p>Addresses the full one-million-ticket dataset and all six-position wildcard patterns.</p></article>
+          <article class="card"><h4>Correct</h4><p>Search and reservation are atomic, and duplicate sale is blocked by a unique constraint.</p></article>
+          <article class="card"><h4>Practical</h4><p>Uses one mature production database and avoids unnecessary distributed coordination.</p></article>
+        </div>
+        <div class="callout"><strong>Key correctness property:</strong> one ticket cannot be reserved by multiple users concurrently, even when their search patterns are different.</div>
+        <div class="table-wrap" style="margin-top:18px"><table><thead><tr><th>Evaluation criterion</th><th>How the proposal addresses it</th></tr></thead><tbody>
+          <tr><td>Feasibility</td><td>Covers one million six-digit tickets, all supported wildcard positions, reservation, purchase, and expiry.</td></tr>
+          <tr><td>Performance</td><td>Uses partial positional indexes, a random pivot, bounded wrap-around, a limit of 10, and documents typical and worst-case Big O.</td></tr>
+          <tr><td>Correctness</td><td>Uses ticket-level row locking, <code>SKIP LOCKED</code>, transactional state changes, and a unique sold-ticket constraint.</td></tr>
+          <tr><td>Real-world practicality</td><td>Keeps PostgreSQL as one transactional source of truth and identifies load testing and a measured scaling path.</td></tr>
+          <tr><td>Creativity</td><td>Combines positional indexing, randomized pivot allocation, bounded wrap-around, and an evaluated bitmap alternative.</td></tr>
+        </tbody></table></div>
+        <div class="step-actions"><a class="btn" href="#tradeoffs">Back</a><a class="btn primary" href="#overview">Restart tour</a></div>
+      </section>
+
+      <footer>Lottery Search System Design Proposal · Design-only submission · No code implementation required</footer>
+    </main>
+  </div>
+
+  <script>
+    const sections=[...document.querySelectorAll(".tour-step")];
+    const links=[...document.querySelectorAll(".tour-nav a")];
+    const progressBar=document.getElementById("progressBar");
+    const setActive=()=>{
+      const center=window.scrollY+window.innerHeight*.4;
+      let activeId=sections[0]?.id;
+      for(const section of sections){if(section.offsetTop<=center)activeId=section.id}
+      links.forEach(link=>link.classList.toggle("active",link.getAttribute("href")==="#"+activeId));
+      const max=document.documentElement.scrollHeight-window.innerHeight;
+      const ratio=max>0?window.scrollY/max:0;
+      progressBar.style.width=Math.min(100,Math.max(0,ratio*100))+"%";
+    };
+    document.addEventListener("scroll",setActive,{passive:true});
+    window.addEventListener("resize",setActive);
+    setActive();
+  </script>
+</body>
+</html>
