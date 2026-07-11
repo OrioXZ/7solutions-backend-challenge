@@ -7,6 +7,28 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seven-solutions-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      HTTP_PORT: "8080"
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DATABASE: seven_solutions
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
 
 volumes:
   mongo_data:
