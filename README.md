@@ -20,7 +20,9 @@ Backend assignment implementation for the 7Solutions Full-Stack Developer positi
 
 The design-only Lottery Search System proposal is available here:
 
-- [Lottery Search System Design Proposal](./LOTTERY_DESIGN.md)
+- [Live Interactive Design Proposal](https://orioxz.github.io/7solutions-backend-challenge/lottery-design-tour.html)
+- [Design Summary](./LOTTERY_DESIGN.md)
+- [Source HTML](./docs/lottery-design-tour.html)
 
 ## Requirements
 
