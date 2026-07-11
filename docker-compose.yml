@@ -1,7 +1,6 @@
 services:
   mongo:
     image: mongo:8.0
-    container_name: seven-solutions-mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -17,7 +16,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: seven-solutions-api
     restart: unless-stopped
     depends_on:
       mongo:
