@@ -1,8 +1,8 @@
 # Lottery Search System Design Proposal
 
-The interactive design proposal is available at [`docs/index.html`](./docs/index.html).
+The interactive design proposal is available at [`docs/lottery-design-tour.html`](./docs/lottery-design-tour.html).
 
-Because GitHub does not render repository HTML files as live pages, clone or download the repository and open `docs/index.html` in a browser.
+Because GitHub does not render repository HTML files as live pages, clone or download the repository and open `docs/lottery-design-tour.html` in a browser.
 
 The proposal covers:
 
