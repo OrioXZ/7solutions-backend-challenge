@@ -1,0 +1,9 @@
+.git
+.gitignore
+README.md
+postman
+*.md
+.env
+.env.*
+coverage.out
+bin
